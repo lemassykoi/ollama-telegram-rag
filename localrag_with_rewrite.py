@@ -63,8 +63,9 @@ while EMBED_MODEL is None:
 logging.info(NEON_GREEN + f"OLLAMA HOST : {OLLAMA_HOST}" + RESET_COLOR)
 logging.info(NEON_GREEN + f"EMBED MODEL : {EMBED_MODEL}" + RESET_COLOR)
 logging.info(NEON_GREEN + f"CHAT  MODEL : {CHAT_MODEL}" + RESET_COLOR)
+logger.info(NEON_GREEN + 'Is Vault Present?\t: ' + YELLOW + str(os.path.isfile(my_filename)) + RESET_COLOR)
 
-input("Press Enter to continue... or CTRL+C to abort")
+input("\nPress Enter to continue... or CTRL+C to abort")
 
 logger.debug("Setting Vars : Done.")
 
@@ -115,6 +116,7 @@ def rewrite_query(user_input_json, conversation_history, ollama_model):
     logger.info(YELLOW + 'Rewrite Query' + RESET_COLOR)
     full_response = oclient.chat(model=ollama_model, messages=message)  ## This full response contains duration
     rewritten_query = full_response.get('message').get('content')
+    logger.info(PINK + f'Rewriten Query : {rewritten_query}' + RESET_COLOR)
     return json.dumps({"Rewritten Query": rewritten_query})
    
 def ollama_chat(user_input, system_message, vault_embeddings, vault_content, ollama_model, conversation_history):
