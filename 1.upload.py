@@ -161,6 +161,7 @@ logger.debug("Setting Functions : Done.")
 logger.debug("Create the main window")
 root = tk.Tk()
 root.title("Upload .pdf, .txt, or .json")
+root.geometry("300x200")
 
 logger.debug("Create a button to open the file dialog for PDF")
 pdf_button = tk.Button(root, text="Upload PDF", command=convert_pdf_to_text)

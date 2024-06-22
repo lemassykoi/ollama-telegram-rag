@@ -4,8 +4,6 @@ import torch
 import ollama
 from prettytable import PrettyTable
 import os
-#from openai import OpenAI
-import argparse
 import json
 
 # Configurer le logging
@@ -23,6 +21,7 @@ OLLAMA_HOST       = '127.0.0.1'                  ### OLLAMA HOST
 text_to_remove    = ""
 oclient           = ollama.Client(host=OLLAMA_HOST)
 EMBED_MODEL       = None
+CHAT_MODEL        = "llama3-custom"
 embed_models_list = []
 models_list       = oclient.list()
 # ANSI escape codes for console colors
@@ -63,6 +62,8 @@ while EMBED_MODEL is None:
 
 logging.info(NEON_GREEN + f"OLLAMA HOST : {OLLAMA_HOST}" + RESET_COLOR)
 logging.info(NEON_GREEN + f"EMBED MODEL : {EMBED_MODEL}" + RESET_COLOR)
+logging.info(NEON_GREEN + f"CHAT  MODEL : {CHAT_MODEL}" + RESET_COLOR)
+
 input("Press Enter to continue... or CTRL+C to abort")
 
 logger.debug("Setting Vars : Done.")
@@ -77,7 +78,7 @@ def get_relevant_context(rewritten_input, vault_embeddings, vault_content, top_k
     if vault_embeddings.nelement() == 0:  # Check if the tensor has any elements
         return []
     # Encode the rewritten input
-    input_embedding = oclient.embeddings(model='mxbai-embed-large', prompt=rewritten_input)["embedding"]
+    input_embedding = oclient.embeddings(model=EMBED_MODEL, prompt=rewritten_input)["embedding"]
     # Compute cosine similarity between the input and vault embeddings
     cos_scores = torch.cosine_similarity(torch.tensor(input_embedding).unsqueeze(0), vault_embeddings)
     # Adjust top_k if it's greater than the number of available scores
@@ -91,38 +92,29 @@ def get_relevant_context(rewritten_input, vault_embeddings, vault_content, top_k
 def rewrite_query(user_input_json, conversation_history, ollama_model):
     user_input = json.loads(user_input_json)["Query"]
     context = "\n".join([f"{msg['role']}: {msg['content']}" for msg in conversation_history[-2:]])
-    prompt = f"""Rewrite the following query by incorporating relevant context from the conversation history.
-    The rewritten query should:
+    prompt = f"""Réécrivez la requête suivante en incorporant le contexte pertinent de l'historique de la conversation.
+    La requête réécrite doit :
+
+    - Préserver l'intention fondamentale et la signification de la requête d'origine
+    - Développer et clarifier la requête pour la rendre plus spécifique et informative pour récupérer le contexte pertinent
+    - Évitez d'introduire de nouveaux sujets ou requêtes qui s'écartent de la requête d'origine
+    - NE JAMAIS RÉPONDRE à la requête d'origine, mais concentrez-vous plutôt sur sa reformulation et son extension dans une nouvelle requête
+
+    Renvoie UNIQUEMENT le texte de la requête réécrit, sans aucune mise en forme ni explication supplémentaire.
     
-    - Preserve the core intent and meaning of the original query
-    - Expand and clarify the query to make it more specific and informative for retrieving relevant context
-    - Avoid introducing new topics or queries that deviate from the original query
-    - DONT EVER ANSWER the Original query, but instead focus on rephrasing and expanding it into a new query
-    
-    Return ONLY the rewritten query text, without any additional formatting or explanations.
-    
-    Conversation History:
+    Historique de la conversation:
     {context}
     
-    Original query: [{user_input}]
+    Requête originale: [{user_input}]
     
-    Rewritten query: 
+    Requête réécrite: 
     """
     message = [{"role": "system", "content": prompt}]
 
     ## Ollama
+    logger.info(YELLOW + 'Rewrite Query' + RESET_COLOR)
     full_response = oclient.chat(model=ollama_model, messages=message)  ## This full response contains duration
     rewritten_query = full_response.get('message').get('content')
-
-    #response = client.chat.completions.create(
-    #    model       = ollama_model,
-    #    messages    = message,
-    #    max_tokens  = 200,
-    #    n           = 1,
-    #    temperature = 0.1,
-    #)
-    #rewritten_query = response.choices[0].message.content.strip()
-
     return json.dumps({"Rewritten Query": rewritten_query})
    
 def ollama_chat(user_input, system_message, vault_embeddings, vault_content, ollama_model, conversation_history):
@@ -159,37 +151,11 @@ def ollama_chat(user_input, system_message, vault_embeddings, vault_content, oll
         *conversation_history
     ]
     
-    ## Ollama
+    logger.info(YELLOW + 'Ollama Chat' + RESET_COLOR)
     full_response = oclient.chat(model=ollama_model, messages=messages)  ## This full response contains duration
     answer = full_response.get('message').get('content')
-    ##
-
-    ## OpenAI
-    #response = client.chat.completions.create(
-    #    model=ollama_model,
-    #    messages=messages,
-    #    max_tokens=4096,
-    #)
-    #answer = response.choices[0].message.content
-    ##
-
     conversation_history.append({"role": "assistant", "content": answer})
-    
     return answer
-
-# Parse command-line arguments
-print(NEON_GREEN + "Parsing command-line arguments..." + RESET_COLOR)
-parser = argparse.ArgumentParser(description="Ollama Chat")
-parser.add_argument("--model", default="llama3", help="Ollama model to use (default: llama3)")
-args = parser.parse_args()
-logger.info(f"Ollama Model for Chat : {args.model}")
-
-# Configuration for the Ollama API client
-#print(NEON_GREEN + "Initializing Ollama API client..." + RESET_COLOR)
-#client = OpenAI(
-#    base_url = f'http://{OLLAMA_HOST}:11434/v1',
-#    api_key  = 'llama3'
-#)
 
 # Load the vault content
 print(NEON_GREEN + "Loading vault content..." + RESET_COLOR)
@@ -233,7 +199,7 @@ print(vault_embeddings_tensor)
 # Conversation loop
 logger.info("Starting conversation loop...")
 conversation_history = []
-system_message = "You are a helpful assistant that is an expert at extracting the most useful information from a given text. Also bring in extra relevant infromation to the user query from outside the given context."
+system_message = "Vous êtes un assistant utile et expert dans l'extraction des informations les plus utiles d'un texte donné. Apportez également des informations supplémentaires pertinentes à la requête de l'utilisateur en dehors du contexte donné."
 
 while True:
     logger.debug("User Loop")
@@ -241,7 +207,7 @@ while True:
     if user_input.lower() == 'quit':
         break
     
-    response = ollama_chat(user_input, system_message, vault_embeddings_tensor, vault_content, args.model, conversation_history)
+    response = ollama_chat(user_input, system_message, vault_embeddings_tensor, vault_content, CHAT_MODEL, conversation_history)
     print(NEON_GREEN + "Response: \n\n" + response + RESET_COLOR)
 
 logger.info("End of File")
