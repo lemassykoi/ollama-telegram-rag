@@ -60,9 +60,9 @@ while EMBED_MODEL is None:
     except ValueError:
         print("Entrée invalide. Veuillez entrer un nombre correspondant à l'ID.")
 
-logging.info(NEON_GREEN + f"OLLAMA HOST : {OLLAMA_HOST}" + RESET_COLOR)
-logging.info(NEON_GREEN + f"EMBED MODEL : {EMBED_MODEL}" + RESET_COLOR)
-logging.info(NEON_GREEN + f"CHAT  MODEL : {CHAT_MODEL}" + RESET_COLOR)
+logger.info(NEON_GREEN + f"OLLAMA HOST : {OLLAMA_HOST}" + RESET_COLOR)
+logger.info(NEON_GREEN + f"EMBED MODEL : {EMBED_MODEL}" + RESET_COLOR)
+logger.info(NEON_GREEN + f"CHAT  MODEL : {CHAT_MODEL}" + RESET_COLOR)
 logger.info(NEON_GREEN + 'Is Vault Present?\t: ' + YELLOW + str(os.path.isfile(my_filename)) + RESET_COLOR)
 
 input("\nPress Enter to continue... or CTRL+C to abort")
@@ -130,17 +130,17 @@ def ollama_chat(user_input, system_message, vault_embeddings, vault_content, oll
         rewritten_query_json = rewrite_query(json.dumps(query_json), conversation_history, ollama_model)
         rewritten_query_data = json.loads(rewritten_query_json)
         rewritten_query = rewritten_query_data["Rewritten Query"]
-        print(PINK + "Original Query: " + user_input + RESET_COLOR)
-        print(PINK + "Rewritten Query: " + rewritten_query + RESET_COLOR)
+        logger.info(PINK + "Original Query: " + user_input + RESET_COLOR)
+        logger.info(PINK + "Rewritten Query: " + rewritten_query + RESET_COLOR)
     else:
         rewritten_query = user_input
     
     relevant_context = get_relevant_context(rewritten_query, vault_embeddings, vault_content)
     if relevant_context:
         context_str = "\n".join(relevant_context)
-        print("Context Pulled from Documents: \n\n" + CYAN + context_str + RESET_COLOR)
+        logger.info("Context Pulled from Documents: \n\n" + CYAN + context_str + RESET_COLOR)
     else:
-        print(CYAN + "No relevant context found." + RESET_COLOR)
+        logger.info(CYAN + "No relevant context found." + RESET_COLOR)
     
     user_input_with_context = user_input
     if relevant_context:
@@ -160,43 +160,43 @@ def ollama_chat(user_input, system_message, vault_embeddings, vault_content, oll
     return answer
 
 # Load the vault content
-print(NEON_GREEN + "Loading vault content..." + RESET_COLOR)
+logger.info(NEON_GREEN + "Loading vault content..." + RESET_COLOR)
 vault_content = []
 if os.path.exists("vault.txt"):
     with open("vault.txt", "r", encoding='utf-8') as vault_file:
         vault_content = vault_file.readlines()
 
 # Generate embeddings for the vault content using Ollama
-print(NEON_GREEN + "Generating embeddings for the vault content..." + RESET_COLOR)
+logger.info(NEON_GREEN + "Generating embeddings for the vault content..." + RESET_COLOR)
 vault_embeddings = []
 
 tic = time.perf_counter()
 for content in vault_content:
-    print(YELLOW + 'QUERY' + RESET_COLOR)
-    print(content)
+    logger.info(YELLOW + 'QUERY' + RESET_COLOR)
+    logger.info(content)
     if text_to_remove:
         content = content.replace(text_to_remove, ' ')
     response = oclient.embeddings(model=EMBED_MODEL, prompt=content)
     
-    print(NEON_GREEN + 'Done' + RESET_COLOR)
-    print(YELLOW + 'APPEND' + RESET_COLOR)
+    logger.info(NEON_GREEN + 'Done' + RESET_COLOR)
+    logger.info(YELLOW + 'APPEND' + RESET_COLOR)
     vault_embeddings.append(response["embedding"])
-    print(NEON_GREEN + 'Done' + RESET_COLOR)
+    logger.info(NEON_GREEN + 'Done' + RESET_COLOR)
 
 logger.debug("Generate Embeddings : Done.")
 toc = time.perf_counter()
 
 if (toc - tic) >= 1000:
     duration = toc - tic / 60
-    print(f"Duration : {duration:0.4f} minutes")
+    logger.info(f"Duration : {duration:0.4f} minutes")
 else:
-    print(f"Duration : {toc - tic:0.4f} seconds")
+    logger.info(f"Duration : {toc - tic:0.4f} seconds")
 
 # Convert to tensor and print embeddings
 logger.info("Converting embeddings to tensor...")
 vault_embeddings_tensor = torch.tensor(vault_embeddings) 
 logger.info("Embeddings for each line in the vault:")
-print(vault_embeddings_tensor)
+logger.info(vault_embeddings_tensor)
 
 # Conversation loop
 logger.info("Starting conversation loop...")
@@ -210,6 +210,6 @@ while True:
         break
     
     response = ollama_chat(user_input, system_message, vault_embeddings_tensor, vault_content, CHAT_MODEL, conversation_history)
-    print(NEON_GREEN + "Response: \n\n" + response + RESET_COLOR)
+    logger.info(NEON_GREEN + "Response: \n\n" + response + RESET_COLOR)
 
 logger.info("End of File")
