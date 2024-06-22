@@ -17,12 +17,13 @@ logger.info("START")
 
 logger.debug("Setting Vars")
 my_filename       = "vault.txt"                    ### FILENAME
-OLLAMA_HOST       = '127.0.0.1'                  ### OLLAMA HOST
+OLLAMA_HOST       = '10.0.0.49'                  ### OLLAMA HOST
 text_to_remove    = ""
 oclient           = ollama.Client(host=OLLAMA_HOST)
 EMBED_MODEL       = None
-CHAT_MODEL        = "llama3-custom"
+CHAT_MODEL        = None
 embed_models_list = []
+tchat_models_list = []
 models_list       = oclient.list()
 # ANSI escape codes for console colors
 PINK              = '\033[95m'
@@ -31,13 +32,26 @@ YELLOW            = '\033[93m'
 NEON_GREEN        = '\033[92m'
 RESET_COLOR       = '\033[0m'
 
-logger.debug("Finding available models")
-for model in models_list['models']:
-    current_model_name = model['name']
-    if "embed" not in current_model_name:
-        continue
-    else:
-        embed_models_list.append(current_model_name)
+def look_for_embed_models():
+    logger.debug('Finding available embed models')
+    for model in models_list['models']:
+        current_model_name = model['name']
+        if "embed" not in current_model_name:
+            continue
+        else:
+            embed_models_list.append(current_model_name)
+
+def look_for_tchat_models():
+    logger.debug('Finding available tchat models')
+    for model in models_list['models']:
+        current_model_name = model['name']
+        if "embed" in current_model_name:
+            continue
+        else:
+            tchat_models_list.append(current_model_name)
+
+
+look_for_embed_models()
 
 logger.debug("Creating PrettyTable")
 table = PrettyTable()
@@ -48,15 +62,37 @@ for item in embed_models_list:
     table.add_row([i, item])
     i += 1
 
-logger.debug("Display PrettyTable")
+logger.debug("Display PrettyTable for Embed Model")
 print(table)
 
 while EMBED_MODEL is None:
     try:
-        choix = int(input("Veuillez choisir un modèle pour l'embedding en entrant l'ID correspondant : "))
+        choix = int(input("Veuillez choisir un modèle pour l'embedding en entrant l'ID correspondant ==> "))
         choix = choix - 1
         EMBED_MODEL = embed_models_list[choix]
         print(f"Vous avez choisi le model pour embed : {EMBED_MODEL}")
+    except ValueError:
+        print("Entrée invalide. Veuillez entrer un nombre correspondant à l'ID.")
+
+look_for_tchat_models()
+logger.debug("Creating PrettyTable for Tchat Model")
+table = PrettyTable()
+table.field_names = ["ID", "Name"]
+# Ajouter les données au tableau
+i = 1
+for item in tchat_models_list:
+    table.add_row([i, item])
+    i += 1
+
+logger.debug("Display PrettyTable for Tchat Model")
+print(table)
+
+while CHAT_MODEL is None:
+    try:
+        choix = int(input("Veuillez choisir un modèle pour le tchat en entrant l'ID correspondant ==> "))
+        choix = choix - 1
+        CHAT_MODEL = tchat_models_list[choix]
+        print(f"Vous avez choisi le model pour embed : {CHAT_MODEL}")
     except ValueError:
         print("Entrée invalide. Veuillez entrer un nombre correspondant à l'ID.")
 
